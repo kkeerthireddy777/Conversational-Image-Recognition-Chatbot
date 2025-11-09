@@ -1,6 +1,7 @@
 import gradio as gr
 from main import ConversationalImageChatbot
 import cv2
+import numpy as np
 
 # Initialize chatbot
 chatbot = ConversationalImageChatbot()
@@ -8,71 +9,93 @@ chatbot = ConversationalImageChatbot()
 def process_image(image):
     """Handle new image upload"""
     if image is None:
-        return None, "Please upload an image first.", []
+        return None, "Please upload an image first.", [], ""
     
-    # Save temporary image
-    temp_path = "temp_image.jpg"
-    cv2.imwrite(temp_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-    
-    # Process image
-    response = chatbot.process_new_image(temp_path)
-    
-    # Get annotated image
-    annotated = chatbot.get_detection_visualization()
-    
-    # Return with empty chat history for new image
-    return annotated, response, []
+    try:
+        # Save temporary image
+        temp_path = "temp_image.jpg"
+        
+        # Handle different image input types
+        if isinstance(image, np.ndarray):
+            cv2.imwrite(temp_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        else:
+            image.save(temp_path)
+        
+        print("Processing image...")
+        
+        # Process image
+        response = chatbot.process_new_image(temp_path)
+        
+        print("Getting detection visualization...")
+        # Get annotated image
+        annotated = chatbot.get_detection_visualization()
+        
+        # Get initial history
+        history_text = show_conversation_history()
+        
+        print("Image processing complete!")
+        
+        # Return with empty chat history for new image
+        return annotated, response, [], history_text
+        
+    except Exception as e:
+        error_msg = f"Error processing image: {str(e)}"
+        print(error_msg)
+        return None, error_msg, [], ""
 
 def chat_with_image(message, history):
     """Handle chat messages"""
-    if message.strip() == "":
-        return history, ""
+    if not message or message.strip() == "":
+        return history, "", show_conversation_history()
     
-    response = chatbot.chat(message)
-    history.append((message, response))
-    return history, ""
+    try:
+        response = chatbot.chat(message)
+        history.append((message, response))
+        
+        # Update history display
+        history_text = show_conversation_history()
+        
+        return history, "", history_text
+        
+    except Exception as e:
+        error_msg = f"Error: {str(e)}"
+        history.append((message, error_msg))
+        return history, "", show_conversation_history()
 
 def show_conversation_history():
     """Display conversation history"""
-    history = chatbot.llm.get_conversation_history()
-    if not history:
-        return "No conversation history yet. Start chatting about the image!"
-    
-    formatted = []
-    for i, msg in enumerate(history, 1):
-        role = "👤 You" if msg["role"] == "user" else "🤖 Bot"
-        formatted.append(f"**Message {i}** - {role}:\n{msg['content']}\n")
-    
-    return "\n---\n\n".join(formatted)
+    try:
+        history = chatbot.llm.get_conversation_history()
+        if not history:
+            return "No conversation history yet. Start chatting about the image!"
+        
+        formatted = []
+        for i, msg in enumerate(history, 1):
+            role = "👤 You" if msg["role"] == "user" else "🤖 Bot"
+            formatted.append(f"**Message {i}** - {role}:\n{msg['content']}\n")
+        
+        return "\n---\n\n".join(formatted)
+    except Exception as e:
+        return f"Error loading history: {str(e)}"
 
 def clear_chat():
     """Clear the chat interface"""
-    return [], ""
+    return [], "", "Chat cleared. Conversation history reset."
 
 # Create Gradio interface
 with gr.Blocks(theme=gr.themes.Soft(), title="Image Recognition Chatbot") as demo:
     gr.Markdown("""
     # 🤖 Conversational Image Recognition Chatbot
     ### Upload an image and have a natural conversation about it!
-    This chatbot uses YOLOv8 for object detection, BLIP-2 for image understanding, and LLaMA 3 for natural conversations.
     """)
     
     with gr.Row():
         with gr.Column(scale=1):
             image_input = gr.Image(label="Upload Image", type="numpy")
             upload_btn = gr.Button("🔍 Analyze Image", variant="primary", size="lg")
-            gr.Markdown("""
-            **Tip:** Upload any image to start. The system will:
-            - Detect objects with bounding boxes
-            - Generate a scene description
-            - Enable natural conversation about the image
-            """)
             
         with gr.Column(scale=1):
             annotated_output = gr.Image(label="Detected Objects with Bounding Boxes")
-            gr.Markdown("""
-            **Detection Info:** Bounding boxes show detected objects with labels and confidence scores.
-            """)
     
     initial_response = gr.Textbox(
         label="🎯 Initial Analysis", 
@@ -92,7 +115,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Image Recognition Chatbot") as dem
     with gr.Row():
         msg_input = gr.Textbox(
             label="Your message",
-            placeholder="Ask anything about the image... (e.g., 'Where is the cat?', 'How many people?')",
+            placeholder="Ask anything about the image...",
             scale=4,
             lines=2
         )
@@ -103,10 +126,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Image Recognition Chatbot") as dem
     gr.Markdown("---")
     
     with gr.Accordion("📜 View Conversation History", open=False):
-        gr.Markdown("""
-        **See the complete conversation thread** including all questions and responses.
-        This helps track the context and flow of your discussion about the image.
-        """)
         history_output = gr.Textbox(
             label="Complete Chat History", 
             lines=12,
@@ -115,111 +134,60 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Image Recognition Chatbot") as dem
         )
         refresh_history_btn = gr.Button("🔄 Refresh History", variant="secondary")
     
-    gr.Markdown("---")
-    
-    with gr.Accordion("💡 Example Questions You Can Ask", open=True):
+    with gr.Accordion("💡 Example Questions", open=True):
         gr.Markdown("""
-        ### Spatial Questions (Uses YOLO Detection):
-        - "Where is the [object] in the image?"
+        **Spatial Questions:**
+        - "Where is the [object]?"
         - "How many [objects] are there?"
         - "What's in the top right corner?"
-        - "What objects are on the left side?"
-        - "Is there a [object] in the center?"
         
-        ### Visual Details (Uses BLIP-2 VQA):
+        **Visual Details:**
         - "What color is the [object]?"
         - "What is the person wearing?"
-        - "What is the person doing?"
-        - "What's the expression on their face?"
-        - "Describe the background"
+        - "What is happening in the image?"
         
-        ### General Questions (Uses LLM):
-        - "Tell me more about this scene"
+        **General Questions:**
+        - "Describe the scene"
         - "What's the mood of this image?"
-        - "What time of day does this look like?"
-        - "What can you tell me about the setting?"
-        - "Is this indoors or outdoors?"
         """)
     
-    with gr.Accordion("ℹ️ How It Works", open=False):
-        gr.Markdown("""
-        ### Technology Stack:
-        
-        1. **YOLOv8** - Object Detection
-           - Identifies objects in the image
-           - Provides precise locations (bounding boxes)
-           - Determines spatial positions (top-left, center, etc.)
-        
-        2. **BLIP-2** - Image Understanding
-           - Generates scene descriptions
-           - Answers visual questions about colors, actions, details
-           - Provides deep visual comprehension
-        
-        3. **LLaMA 3 (70B)** - Conversational AI
-           - Maintains conversation context
-           - Generates natural responses
-           - Combines detection + vision insights
-        
-        4. **LangGraph** - Memory Management
-           - Maintains conversation history
-           - Tracks context across messages
-           - Enables multi-turn dialogues
-        """)
-    
-    # Event handlers
+    # Event handlers - FIXED to prevent infinite loops
     upload_btn.click(
         fn=process_image,
         inputs=[image_input],
-        outputs=[annotated_output, initial_response, chatbot_interface]
-    ).then(
-        fn=show_conversation_history,
-        outputs=[history_output]
+        outputs=[annotated_output, initial_response, chatbot_interface, history_output],
+        show_progress=True
     )
     
     send_btn.click(
         fn=chat_with_image,
         inputs=[msg_input, chatbot_interface],
-        outputs=[chatbot_interface, msg_input]
-    ).then(
-        fn=show_conversation_history,
-        outputs=[history_output]
+        outputs=[chatbot_interface, msg_input, history_output],
+        show_progress=True
     )
     
     msg_input.submit(
         fn=chat_with_image,
         inputs=[msg_input, chatbot_interface],
-        outputs=[chatbot_interface, msg_input]
-    ).then(
-        fn=show_conversation_history,
-        outputs=[history_output]
+        outputs=[chatbot_interface, msg_input, history_output],
+        show_progress=True
     )
     
     clear_btn.click(
         fn=clear_chat,
-        outputs=[chatbot_interface, msg_input]
+        outputs=[chatbot_interface, msg_input, history_output]
     )
     
     refresh_history_btn.click(
         fn=show_conversation_history,
         outputs=[history_output]
     )
-    
-    gr.Markdown("""
-    ---
-    ### 📝 Tips for Best Results:
-    - Upload clear, well-lit images for better detection
-    - Ask specific questions for more precise answers
-    - Use "where" questions to leverage spatial detection
-    - The chatbot remembers context within each image session
-    - Upload a new image to start a fresh conversation
-    
-    **Made with ❤️ using YOLOv8, BLIP-2, LLaMA 3, and LangGraph**
-    """)
 
 if __name__ == "__main__":
     demo.launch(
-        share=True,
-        server_name="0.0.0.0",
+        share=False,
+        server_name="127.0.0.1",
         server_port=7860,
-        show_error=True
+        show_error=True,
+        debug=True
     )
