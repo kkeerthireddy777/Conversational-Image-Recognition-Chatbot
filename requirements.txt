@@ -1,0 +1,14 @@
+torch
+torchvision
+transformers
+ultralytics
+pillow
+langchain
+langchain-core
+langgraph
+langchain-groq
+python-dotenv
+gradio
+opencv-python
+numpy
+
