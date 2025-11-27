@@ -1,3 +1,34 @@
+# -----------------------
+# Defensive monkeypatch: make gradio_client.json schema parsing tolerant
+# Place this at the TOP of app.py BEFORE any `import gradio` or `from gradio_client import ...`
+# -----------------------
+try:
+    import importlib
+    gc_utils = importlib.import_module("gradio_client.utils")
+    # If the internal function exists, wrap it
+    if hasattr(gc_utils, "_json_schema_to_python_type"):
+        _orig = gc_utils._json_schema_to_python_type
+        def _safe_json_schema_to_python_type(schema, defs=None):
+            try:
+                return _orig(schema, defs)
+            except TypeError:
+                # defensive fallback for boolean schemas or unexpected shapes
+                return "Any"
+        gc_utils._json_schema_to_python_type = _safe_json_schema_to_python_type
+    # Also wrap the public entrypoint if present
+    if hasattr(gc_utils, "json_schema_to_python_type"):
+        _orig_public = gc_utils.json_schema_to_python_type
+        def _safe_json_schema_to_python_type_public(schema):
+            try:
+                return _orig_public(schema)
+            except TypeError:
+                return "Any"
+        gc_utils.json_schema_to_python_type = _safe_json_schema_to_python_type_public
+except Exception:
+    # If gradio_client isn't installed or something else goes wrong, ignore patch.
+    pass
+
+
 import gradio as gr
 from main import ConversationalImageChatbot
 import cv2
@@ -259,9 +290,9 @@ if __name__ == "__main__":
     
     demo.queue()  # Enable queue for better handling
     demo.launch(
-        share=False,
-        server_name="127.0.0.1",
-        server_port=7860,
-        show_error=True,
-        inbrowser=True  # Auto-open browser
+        share=True,
+            server_name="0.0.0.0",
+            server_port=7860,
+            show_error=True,
+            inbrowser=False
     )

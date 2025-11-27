@@ -1,3 +1,14 @@
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+
 import os
 from dotenv import load_dotenv
 
@@ -10,7 +21,7 @@ class Config:
     # Model Configurations
     YOLO_MODEL = "yolov8x.pt"  # Use yolov8x for best accuracy
     BLIP_MODEL = "Salesforce/blip2-opt-2.7b"  # or blip2-flan-t5-xl for better quality
-    LLM_MODEL = "llama3-70b-8192"  # Groq's LLaMA 3 70B
+    LLM_MODEL = "llama-3.1-8b-instant"
     
     # Detection Thresholds
     YOLO_CONFIDENCE = 0.5
