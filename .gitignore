@@ -135,4 +135,4 @@ credentials.json
 # Backup files
 *.bak
 *.backup
-*_backup.*
+*_backup.*scripts/code_backup.py
