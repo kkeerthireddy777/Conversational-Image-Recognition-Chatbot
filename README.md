@@ -5,7 +5,7 @@ A conversational multimodal AI system that can **analyze images**, **detect obje
 
 This project integrates **YOLOv8**, **BLIP-2**, and **LLaMA (via Ollama)** into a unified pipeline served through a **Gradio web interface**.
 
----
+
 
 # 🚀 Features
 
@@ -28,7 +28,7 @@ This project integrates **YOLOv8**, **BLIP-2**, and **LLaMA (via Ollama)** into 
 - Upload → Analyze → Chat workflow  
 - Annotated output panel
 
----
+
 
 # 🧠 Tech Stack
 
@@ -41,7 +41,7 @@ This project integrates **YOLOv8**, **BLIP-2**, and **LLaMA (via Ollama)** into 
 | Backend | Python + PyTorch |
 | Environment | Mac M1 local + optional Google Colab GPU |
 
----
+
 
 # 🏗️ Architecture
 
